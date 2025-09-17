@@ -24,7 +24,22 @@ export const createHotel = async (req, res) => {
 // @access  Public
 export const getAllHotels = async (req, res) => {
   try {
-    const hotels = await Hotel.find({});
+    const { city, minPrice, maxPrice, starRating } = req.query;
+
+    let filter = {};
+
+    if (city) {
+      // Use a case-insensitive regex for searching
+      filter.city = { $regex: city, $options: "i" };
+    }
+
+    // This is a placeholder for room price, a more complex query would be needed
+    // for now we can filter by star rating as a proxy for price/quality
+    if (starRating) {
+      filter.starRating = { $gte: Number(starRating) }; // gte = greater than or equal
+    }
+
+    const hotels = await Hotel.find(filter);
     res.status(200).json(hotels);
   } catch (error) {
     res

@@ -33,8 +33,12 @@ const Header = () => {
 
         {/* The SignedIn component renders its children only if the user is signed in. */}
         <SignedIn>
-          {/* UserButton is a pre-built component from Clerk that shows the user's avatar
-              and provides options for profile management and sign-out. */}
+          <Link
+            to="/my-bookings"
+            className="text-sm font-medium hover:underline"
+          >
+            My Bookings
+          </Link>
           <UserButton afterSignOutUrl="/" />
         </SignedIn>
       </nav>

@@ -6,6 +6,7 @@ import AuthManager from "./components/AuthManager";
 import AdminPage from "./pages/AdminPage";
 import HotelsPage from "./pages/HotelsPage";
 import HotelDetailPage from "./pages/HotelDetailPage";
+import MyBookingsPage from "./pages/MyBookingsPage";
 
 const HomePage = () => <div>This is the Public Home Page</div>;
 const DashboardPage = () => {
@@ -46,6 +47,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-bookings"
+            element={
+              <ProtectedRoute>
+                <MyBookingsPage />
               </ProtectedRoute>
             }
           />

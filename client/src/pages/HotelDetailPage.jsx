@@ -3,8 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getHotelByIdAPI } from "../services/apiClient";
 import apiClient from "../services/apiClient";
 import { Star, MapPin, Users, DollarSign } from "lucide-react";
-import { useUser, useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/clerk-react";
 import { differenceInCalendarDays } from "date-fns";
+
+// Import our new custom hook for checking admin role
+import { useAdmin } from "../hooks/useAdmin";
 
 import AddRoomForm from "../components/admin/AddRoomForm";
 import BookingWidget from "../components/BookingWidget";
@@ -32,15 +35,18 @@ const createBookingAPI = async (bookingData, getToken) => {
 
 const HotelDetailPage = () => {
   const { id: hotelId } = useParams();
-  const { isSignedIn } = useUser();
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const navigate = useNavigate();
+
+  // Use our custom hook to determine if the current user is an admin.
+  const { isAdmin } = useAdmin();
 
   const [hotel, setHotel] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // State for the central booking widget, controlled by this parent component.
   const [dateRange, setDateRange] = useState({
     from: undefined,
     to: undefined,
@@ -137,7 +143,6 @@ const HotelDetailPage = () => {
 
   return (
     <div className="container mx-auto p-4">
-      {/* Hotel Info, Gallery, Description, and Amenities sections are correct and unchanged */}
       {/* Hotel Info Section */}
       <div className="mb-6">
         <h1 className="text-4xl font-bold mb-2">{hotel.name}</h1>
@@ -181,7 +186,6 @@ const HotelDetailPage = () => {
           <div className="space-y-6">
             {rooms.length > 0 ? (
               rooms.map((room) => (
-                // --- THIS IS THE CORRECTED ROOM CARD STRUCTURE ---
                 <Card key={room._id} className="shadow-lg flex flex-col">
                   <CardHeader>
                     <CardTitle>{room.title}</CardTitle>
@@ -208,11 +212,10 @@ const HotelDetailPage = () => {
                     </Button>
                   </CardFooter>
                 </Card>
-                // --- END OF CORRECTED STRUCTURE ---
               ))
             ) : (
               <p className="text-center text-gray-500">
-                No rooms available for this hotel yet.
+                No rooms have been added for this hotel yet.
               </p>
             )}
           </div>
@@ -230,7 +233,8 @@ const HotelDetailPage = () => {
         </div>
       </div>
 
-      {isSignedIn && (
+      {/* Admin Section: Renders ONLY if the user has the 'admin' role in their metadata. */}
+      {isAdmin && (
         <div className="my-8 p-6 bg-gray-50 rounded-lg shadow-inner">
           <h2 className="text-2xl font-bold mb-4 text-center">Admin Panel</h2>
           <div className="flex justify-center">
