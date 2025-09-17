@@ -4,6 +4,8 @@ import cors from "cors"; //
 import connectDB from "./config/db.js";
 import { clerkAuth } from "./middleware/authMiddleware.js";
 import hotelRoutes from "./routes/hotelRoutes.js";
+import roomRoutes from "./routes/roomRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
 
 connectDB();
 
@@ -25,6 +27,8 @@ app.get("/api/protected-data", clerkAuth, (req, res) => {
 });
 
 app.use("/api/hotels", hotelRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 const PORT = process.env.PORT || 5000;
 
