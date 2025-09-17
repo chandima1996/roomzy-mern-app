@@ -5,14 +5,20 @@ const Header = () => {
   return (
     <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
       <div className="text-xl font-bold">
-        <Link to="/">HotelHub</Link>
+        <Link to="/">Roomzy</Link>
       </div>
       <nav className="flex items-center space-x-4">
         <Link to="/" className="hover:text-gray-300">
           Home
         </Link>
+        <Link to="/hotels" className="hover:text-gray-300">
+          Hotels
+        </Link>
         <Link to="/dashboard" className="hover:text-gray-300">
           Dashboard
+        </Link>
+        <Link to="/admin" className="hover:text-gray-300">
+          Admin
         </Link>
 
         {/* The SignedOut component renders its children only if the user is signed out. */}

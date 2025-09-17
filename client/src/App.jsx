@@ -1,8 +1,11 @@
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import Header from "./components/Header";
 import AuthManager from "./components/AuthManager";
+import AdminPage from "./pages/AdminPage";
+import HotelsPage from "./pages/HotelsPage";
+import HotelDetailPage from "./pages/HotelDetailPage";
 
 const HomePage = () => <div>This is the Public Home Page</div>;
 const DashboardPage = () => {
@@ -18,6 +21,9 @@ function App() {
       <main className="p-4">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/hotels" element={<HotelsPage />} />
+          <Route path="/hotel/:id" element={<HotelDetailPage />} />
+
           <Route
             path="/sign-in/*"
             element={<SignIn routing="path" path="/sign-in" />}
@@ -32,6 +38,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminPage />
               </ProtectedRoute>
             }
           />

@@ -1,9 +1,9 @@
 import express from "express";
-import dotenv from "dotenv"; //
+//
 import cors from "cors"; //
 import connectDB from "./config/db.js";
 import { clerkAuth } from "./middleware/authMiddleware.js";
-dotenv.config();
+import hotelRoutes from "./routes/hotelRoutes.js";
 
 connectDB();
 
@@ -23,6 +23,8 @@ app.get("/api/protected-data", clerkAuth, (req, res) => {
     userId: req.auth.sub,
   });
 });
+
+app.use("/api/hotels", hotelRoutes);
 
 const PORT = process.env.PORT || 5000;
 
