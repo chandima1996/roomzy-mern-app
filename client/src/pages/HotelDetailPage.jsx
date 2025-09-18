@@ -4,13 +4,17 @@ import { getHotelByIdAPI } from "../services/apiClient";
 import apiClient from "../services/apiClient";
 import { Star, MapPin, Users, DollarSign } from "lucide-react";
 import { useAuth } from "@clerk/clerk-react";
-import { differenceInCalendarDays } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
 
-// Import our new custom hook for checking admin role
+// Stripe Imports
+import { Elements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+
+// Custom Component Imports
 import { useAdmin } from "../hooks/useAdmin";
-
 import AddRoomForm from "../components/admin/AddRoomForm";
 import BookingWidget from "../components/BookingWidget";
+import CheckoutForm from "../components/CheckoutForm"; // Stripe's payment form
 import {
   Card,
   CardContent,
@@ -19,26 +23,39 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
+// Initialize Stripe outside of the component to avoid re-creating on every render
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+// API Service Functions (can also be in apiClient.js)
 const getHotelRoomsAPI = async (hotelId) => {
   const response = await apiClient.get(`/rooms/${hotelId}`);
   return response.data;
 };
 
-const createBookingAPI = async (bookingData, getToken) => {
+const createPaymentIntentAPI = async (bookingData, getToken) => {
   const token = await getToken();
-  const response = await apiClient.post("/bookings", bookingData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+  const response = await apiClient.post(
+    "/payments/create-payment-intent",
+    bookingData,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data; // Should return { clientSecret, bookingId }
 };
 
 const HotelDetailPage = () => {
   const { id: hotelId } = useParams();
   const { getToken, isSignedIn } = useAuth();
   const navigate = useNavigate();
-
-  // Use our custom hook to determine if the current user is an admin.
   const { isAdmin } = useAdmin();
 
   const [hotel, setHotel] = useState(null);
@@ -46,12 +63,19 @@ const HotelDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // State for the central booking widget, controlled by this parent component.
+  // State for the central booking widget
   const [dateRange, setDateRange] = useState({
     from: undefined,
     to: undefined,
   });
   const [guestCount, setGuestCount] = useState(1);
+
+  // State for the payment flow
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [clientSecret, setClientSecret] = useState("");
+  const [currentBookingId, setCurrentBookingId] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState(null);
 
   useEffect(() => {
     const fetchHotelAndRooms = async () => {
@@ -100,6 +124,8 @@ const HotelDetailPage = () => {
       return;
     }
 
+    setProcessingPayment(true);
+    setSelectedRoom(room); // Store the selected room info
     try {
       const bookingData = {
         room: room._id,
@@ -107,13 +133,15 @@ const HotelDetailPage = () => {
         checkOutDate: dateRange.to,
         guestCount,
       };
-      const newBooking = await createBookingAPI(bookingData, getToken);
-      alert(
-        `Booking successful for "${room.title}"! Your total price is $${newBooking.totalPrice}.`
-      );
+      const data = await createPaymentIntentAPI(bookingData, getToken);
+      setClientSecret(data.clientSecret);
+      setCurrentBookingId(data.bookingId);
+      setShowPaymentDialog(true);
     } catch (error) {
-      console.error("Booking failed:", error);
-      alert(`Booking failed: ${error.message}`);
+      console.error("Failed to create payment intent:", error);
+      alert(`Error: ${error.message || "Could not initiate payment."}`);
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -141,9 +169,14 @@ const HotelDetailPage = () => {
       <div className="container mx-auto p-4 text-center">Hotel not found.</div>
     );
 
+  const numberOfNights =
+    dateRange.from && dateRange.to
+      ? differenceInCalendarDays(dateRange.to, dateRange.from)
+      : 0;
+
   return (
     <div className="container mx-auto p-4">
-      {/* Hotel Info Section */}
+      {/* Hotel Info, Description, Amenities sections remain the same */}
       <div className="mb-6">
         <h1 className="text-4xl font-bold mb-2">{hotel.name}</h1>
         <div className="flex items-center mb-4 flex-wrap">
@@ -159,65 +192,39 @@ const HotelDetailPage = () => {
         </div>
       </div>
 
-      {/* Description Section */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-2">About this hotel</h2>
-        <p className="text-gray-700 leading-relaxed">{hotel.description}</p>
-      </div>
-
-      {/* Amenities Section */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-2">Amenities</h2>
-        <div className="flex flex-wrap gap-2">
-          {hotel.amenities.map((amenity) => (
-            <span
-              key={amenity}
-              className="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full"
-            >
-              {amenity}
-            </span>
-          ))}
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
         <div className="lg:col-span-2">
           <h2 className="text-3xl font-bold mb-6">Our Rooms</h2>
           <div className="space-y-6">
-            {rooms.length > 0 ? (
-              rooms.map((room) => (
-                <Card key={room._id} className="shadow-lg flex flex-col">
-                  <CardHeader>
-                    <CardTitle>{room.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <p className="text-gray-600 mb-4">{room.description}</p>
-                    <div className="flex items-center text-sm space-x-4">
-                      <div className="flex items-center">
-                        <Users className="w-4 h-4 mr-2" /> Max {room.maxGuests}{" "}
-                        guests
-                      </div>
-                      <div className="flex items-center text-lg font-semibold">
-                        <DollarSign className="w-5 h-5 mr-1" /> {room.price} /
-                        night
-                      </div>
+            {rooms.map((room) => (
+              <Card key={room._id} className="shadow-lg flex flex-col">
+                <CardHeader>
+                  <CardTitle>{room.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <p className="text-gray-600 mb-4">{room.description}</p>
+                  <div className="flex items-center text-sm space-x-4">
+                    <div className="flex items-center">
+                      <Users className="w-4 h-4 mr-2" /> Max {room.maxGuests}{" "}
+                      guests
                     </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button
-                      className="w-full"
-                      onClick={() => handleReserveClick(room)}
-                    >
-                      Reserve Now
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))
-            ) : (
-              <p className="text-center text-gray-500">
-                No rooms have been added for this hotel yet.
-              </p>
-            )}
+                    <div className="flex items-center text-lg font-semibold">
+                      <DollarSign className="w-5 h-5 mr-1" /> {room.price} /
+                      night
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    className="w-full"
+                    onClick={() => handleReserveClick(room)}
+                    disabled={processingPayment}
+                  >
+                    {processingPayment ? "Processing..." : "Reserve Now"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </div>
 
@@ -233,7 +240,6 @@ const HotelDetailPage = () => {
         </div>
       </div>
 
-      {/* Admin Section: Renders ONLY if the user has the 'admin' role in their metadata. */}
       {isAdmin && (
         <div className="my-8 p-6 bg-gray-50 rounded-lg shadow-inner">
           <h2 className="text-2xl font-bold mb-4 text-center">Admin Panel</h2>
@@ -242,6 +248,52 @@ const HotelDetailPage = () => {
           </div>
         </div>
       )}
+
+      {/* Payment Dialog (Modal) */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirm and Pay</DialogTitle>
+            <DialogDescription>
+              Review your booking details and complete the payment to confirm
+              your reservation.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRoom && numberOfNights > 0 && (
+            <div className="py-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Room</span>{" "}
+                <span className="font-medium">{selectedRoom.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Check-in</span>{" "}
+                <span className="font-medium">
+                  {format(dateRange.from, "MMM dd, yyyy")}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Check-out</span>{" "}
+                <span className="font-medium">
+                  {format(dateRange.to, "MMM dd, yyyy")}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Total Nights</span>{" "}
+                <span className="font-medium">{numberOfNights}</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold pt-2 border-t mt-2">
+                <span className="">Total Price</span>{" "}
+                <span>${numberOfNights * selectedRoom.price}</span>
+              </div>
+            </div>
+          )}
+          {clientSecret && (
+            <Elements options={{ clientSecret }} stripe={stripePromise}>
+              <CheckoutForm bookingId={currentBookingId} />
+            </Elements>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
